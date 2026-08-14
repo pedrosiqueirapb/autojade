@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local database/cache fallback files
+/src/data/sessions.json
+/src/data/payments.json
+/src/data/access_logs.json
+/src/data/login_lockouts.json

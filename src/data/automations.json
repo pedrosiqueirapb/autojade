@@ -1,0 +1,65 @@
+[
+  {
+    "id": "auto-1",
+    "num": "01",
+    "title": "Atendimento ao cliente 24h",
+    "desc": "Evite perder vendas por demora no retorno. Seus clientes recebem respostas imediatas para as dúvidas mais comuns a qualquer hora do dia ou da noite, garantindo agilidade no contato e mantendo o interesse de quem procura seus serviços.",
+    "createdAt": "2026-08-10T12:52:37.069Z"
+  },
+  {
+    "id": "auto-2",
+    "num": "02",
+    "title": "Acompanhamento de vendas",
+    "desc": "Aumente as chances de fechar novos negócios sem precisar lembrar de enviar mensagens. O sistema envia avisos e novidades aos interessados de forma automática, ajudando a recuperar clientes que pararam de responder.",
+    "createdAt": "2026-08-10T13:52:37.070Z"
+  },
+  {
+    "id": "auto-3",
+    "num": "03",
+    "title": "Respostas para seguidores",
+    "desc": "Agilize o atendimento aos seus seguidores sem precisar responder manualmente às perguntas mais repetitivas. O sistema identifica dúvidas comuns recebidas pelos seus canais e utiliza inteligência artificial para preparar respostas adequadas, deixando você livre para cuidar das conversas que realmente exigem sua atenção.",
+    "createdAt": "2026-08-10T14:52:37.070Z"
+  },
+  {
+    "id": "auto-4",
+    "num": "04",
+    "title": "Agendamento de horários",
+    "desc": "Elimine erros de marcação e a perda de tempo organizando compromissos. Seus clientes escolhem o horário disponível de forma simples e recebem lembretes automáticos, reduzindo drasticamente os esquecimentos e faltas.",
+    "createdAt": "2026-08-10T15:52:37.070Z"
+  },
+  {
+    "id": "auto-5",
+    "num": "05",
+    "title": "Leitura de notas fiscais",
+    "desc": "Livre sua equipe de digitar notas fiscais e enviar documentos manualmente para o contador. O sistema lê as notas recebidas por e-mail de forma automática, organiza os dados e envia tudo direto para a contabilidade ao fim do mês.",
+    "createdAt": "2026-08-10T16:52:37.070Z"
+  },
+  {
+    "id": "auto-6",
+    "num": "06",
+    "title": "Pesquisa ativa de clientes",
+    "desc": "Mantenha sua equipe comercial sempre abastecida com novas oportunidades. O sistema busca de forma ativa empresas ou clientes com o perfil ideal na internet e inicia o primeiro contato de apresentação do seu negócio.",
+    "createdAt": "2026-08-10T17:52:37.070Z"
+  },
+  {
+    "id": "auto-7",
+    "num": "07",
+    "title": "Coleta de ideias para conteúdo",
+    "desc": "Nunca fique sem saber o que publicar. O sistema reúne automaticamente perguntas, comentários, tendências, notícias e outros assuntos relacionados ao seu nicho, organizando tudo em um banco de ideias para você consultar quando precisar criar um novo conteúdo.",
+    "createdAt": "2026-08-10T18:52:37.070Z"
+  },
+  {
+    "id": "auto-8",
+    "num": "08",
+    "title": "Lembretes para eventos",
+    "desc": "Garanta a presença do público em suas reuniões, treinamentos ou palestras. O sistema cuida de todas as inscrições, confirmações de pagamento e envia avisos personalizados com as principais informações antes do início.",
+    "createdAt": "2026-08-10T19:52:37.070Z"
+  },
+  {
+    "id": "auto-9",
+    "num": "09",
+    "title": "Seleção rápida de currículos",
+    "desc": "Agilize a contratação de novos funcionários para a sua empresa sem perder tempo analisando dezenas de e-mails. O sistema analisa os currículos recebidos, seleciona os melhores perfis e marca a entrevista de forma automática.",
+    "createdAt": "2026-08-10T20:52:37.070Z"
+  }
+]
