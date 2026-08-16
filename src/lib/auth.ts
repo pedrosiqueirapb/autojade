@@ -17,16 +17,26 @@ export interface AccessLog {
   reason?: string;
 }
 
-const SESSIONS_FILE_PATH = path.join(process.cwd(), 'src/data/sessions.json');
 const LOGS_FILE_PATH = path.join(process.cwd(), 'src/data/access_logs.json');
 const LOCKOUTS_FILE_PATH = path.join(process.cwd(), 'src/data/login_lockouts.json');
+
+// In-memory fallback for lockout storage on serverless hosts like Vercel (read-only file system)
+interface LockoutData {
+  attempts: number;
+  lockUntil: number;
+}
+const memoryLockouts = new Map<string, LockoutData>();
 
 async function ensureFileExists(filePath: string, defaultContent: string = '[]') {
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.access(filePath);
   } catch {
-    await fs.writeFile(filePath, defaultContent, 'utf-8');
+    try {
+      await fs.writeFile(filePath, defaultContent, 'utf-8');
+    } catch {
+      // Ignore write errors in read-only environments
+    }
   }
 }
 
@@ -45,75 +55,75 @@ export async function getClientIp(): Promise<string> {
   return '127.0.0.1';
 }
 
-// 1. Session Management
+// 1. Session Management (Stateless Cryptographic Sessions for Serverless Deployment)
 export async function createSession(): Promise<string> {
-  await ensureFileExists(SESSIONS_FILE_PATH, '[]');
+  // Generate a stateless, cryptographically secure token that expires in 24 hours.
+  // The token is of the format base64url(payload).hmacSignature
+  const now = Date.now();
+  const expiresAt = now + 24 * 60 * 60 * 1000; // 24 hours
+  const payload = JSON.stringify({ expiresAt });
+  const base64Payload = Buffer.from(payload).toString('base64url');
   
-  const token = 'session_' + crypto.randomBytes(32).toString('hex');
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours session
-
-  const data = await fs.readFile(SESSIONS_FILE_PATH, 'utf-8');
-  const sessions: Session[] = JSON.parse(data);
-
-  // Clean up expired sessions on write
-  const activeSessions = sessions.filter(s => new Date(s.expiresAt) > now);
+  const key = process.env.ADMIN_PASSWORD || 'default_secret_key_autojade_fallback';
+  const hmac = crypto.createHmac('sha256', key).update(base64Payload).digest('hex');
   
-  activeSessions.push({
-    token,
-    createdAt: now.toISOString(),
-    expiresAt: expiresAt.toISOString()
-  });
-
-  await fs.writeFile(SESSIONS_FILE_PATH, JSON.stringify(activeSessions, null, 2), 'utf-8');
-  return token;
+  return `${base64Payload}.${hmac}`;
 }
 
 export async function validateSession(token: string): Promise<boolean> {
-  await ensureFileExists(SESSIONS_FILE_PATH, '[]');
+  if (!token || !token.includes('.')) return false;
   try {
-    const data = await fs.readFile(SESSIONS_FILE_PATH, 'utf-8');
-    const sessions: Session[] = JSON.parse(data);
-    const now = new Date();
+    const [base64Payload, hmac] = token.split('.');
+    const key = process.env.ADMIN_PASSWORD || 'default_secret_key_autojade_fallback';
     
-    const session = sessions.find(s => s.token === token && new Date(s.expiresAt) > now);
-    return !!session;
+    // Verify signature integrity
+    const calculatedHmac = crypto.createHmac('sha256', key).update(base64Payload).digest('hex');
+    if (calculatedHmac !== hmac) return false;
+    
+    // Verify expiration time
+    const payload = JSON.parse(Buffer.from(base64Payload, 'base64url').toString('utf8'));
+    const now = Date.now();
+    return payload.expiresAt > now;
   } catch {
     return false;
   }
 }
 
 export async function deleteSession(token: string): Promise<void> {
-  await ensureFileExists(SESSIONS_FILE_PATH, '[]');
-  try {
-    const data = await fs.readFile(SESSIONS_FILE_PATH, 'utf-8');
-    const sessions: Session[] = JSON.parse(data);
-    
-    const filtered = sessions.filter(s => s.token !== token);
-    await fs.writeFile(SESSIONS_FILE_PATH, JSON.stringify(filtered, null, 2), 'utf-8');
-  } catch (error) {
-    console.error("Failed to delete session:", error);
+  // Stateless sessions cannot be invalidated on the server-side without a blacklist database.
+  // Clearing the cookie on the client side is sufficient for normal logout flows.
+  // This function is kept as a safe no-op to maintain interface compatibility.
+  if (token) {
+    // Session token cleared client-side
   }
 }
 
-// 2. Persistent Brute Force Protection (Lockout)
-interface LockoutData {
-  attempts: number;
-  lockUntil: number;
-}
-
+// 2. Brute Force Protection (Lockout) with Graceful Serverless Fallback
 async function getLockouts(): Promise<Record<string, LockoutData>> {
-  await ensureFileExists(LOCKOUTS_FILE_PATH, '{}');
   try {
+    await ensureFileExists(LOCKOUTS_FILE_PATH, '{}');
     const data = await fs.readFile(LOCKOUTS_FILE_PATH, 'utf-8');
     return JSON.parse(data);
   } catch {
-    return {};
+    // EROFS fallback: construct record from in-memory Map
+    const record: Record<string, LockoutData> = {};
+    for (const [key, value] of memoryLockouts.entries()) {
+      record[key] = value;
+    }
+    return record;
   }
 }
 
 async function saveLockouts(lockouts: Record<string, LockoutData>) {
-  await fs.writeFile(LOCKOUTS_FILE_PATH, JSON.stringify(lockouts, null, 2), 'utf-8');
+  try {
+    await fs.writeFile(LOCKOUTS_FILE_PATH, JSON.stringify(lockouts, null, 2), 'utf-8');
+  } catch {
+    // EROFS fallback: save to in-memory Map
+    memoryLockouts.clear();
+    for (const [key, value] of Object.entries(lockouts)) {
+      memoryLockouts.set(key, value);
+    }
+  }
 }
 
 export async function checkLockout(ip: string): Promise<{ locked: boolean; remainingMs: number }> {
@@ -215,10 +225,10 @@ export function verifyTOTP(token: string, secretBase32: string): boolean {
   return false;
 }
 
-// 4. Audit / Access Logging
+// 4. Audit / Access Logging with Graceful Fallback
 export async function logAccessAttempt(ip: string, action: string, status: 'SUCCESS' | 'FAILURE' | 'BLOCKED', reason?: string) {
-  await ensureFileExists(LOGS_FILE_PATH, '[]');
   try {
+    await ensureFileExists(LOGS_FILE_PATH, '[]');
     const data = await fs.readFile(LOGS_FILE_PATH, 'utf-8');
     const logs: AccessLog[] = JSON.parse(data);
     
@@ -230,11 +240,10 @@ export async function logAccessAttempt(ip: string, action: string, status: 'SUCC
       reason
     });
 
-    // Limit log file size to last 500 records
     const trimmedLogs = logs.slice(-500);
-
     await fs.writeFile(LOGS_FILE_PATH, JSON.stringify(trimmedLogs, null, 2), 'utf-8');
-  } catch (error) {
-    console.error("Failed to write access log:", error);
+  } catch {
+    // EROFS fallback: output to standard cloud console stream logs
+    console.log(`[Access Log] ${new Date().toISOString()} | IP: ${ip} | Action: ${action} | Status: ${status} | Reason: ${reason || 'N/A'}`);
   }
 }
