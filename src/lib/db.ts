@@ -21,6 +21,15 @@ const supabase = useSupabase ? createClient(supabaseUrl!, supabaseAnonKey!) : nu
 
 const LOCAL_FILE_PATH = path.join(process.cwd(), 'src/data/projects.json');
 
+// Helper to safely write files in read-only serverless environments without throwing fatal errors
+async function safeWriteFile(filePath: string, content: string): Promise<void> {
+  try {
+    await fs.writeFile(filePath, content, 'utf-8');
+  } catch (err) {
+    console.warn(`Local file database write skipped for ${path.basename(filePath)} (expected in read-only serverless environments):`, err);
+  }
+}
+
 // Helper to ensure the local JSON file exists with mock items if empty
 async function ensureLocalFile() {
   try {
@@ -50,7 +59,17 @@ async function ensureLocalFile() {
         createdAt: new Date(Date.now() - 3600000 * 48).toISOString() // 48 hours ago
       }
     ];
-    await fs.writeFile(LOCAL_FILE_PATH, JSON.stringify(initialMocks, null, 2), 'utf-8');
+    await safeWriteFile(LOCAL_FILE_PATH, JSON.stringify(initialMocks, null, 2));
+  }
+}
+
+async function getLocalProjects(): Promise<Project[]> {
+  await ensureLocalFile();
+  try {
+    const data = await fs.readFile(LOCAL_FILE_PATH, 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return [];
   }
 }
 
@@ -66,7 +85,7 @@ export async function getProjects(): Promise<Project[]> {
         console.warn("Supabase error, falling back to local storage:", error);
         return getLocalProjects();
       }
-      return data || [];
+      return data;
     } catch (e) {
       console.warn("Supabase exception, falling back to local storage:", e);
       return getLocalProjects();
@@ -76,20 +95,9 @@ export async function getProjects(): Promise<Project[]> {
   }
 }
 
-async function getLocalProjects(): Promise<Project[]> {
-  await ensureLocalFile();
-  try {
-    const data = await fs.readFile(LOCAL_FILE_PATH, 'utf-8');
-    return JSON.parse(data);
-  } catch (e) {
-    console.error("Failed to read local projects:", e);
-    return [];
-  }
-}
-
 export async function createProject(title: string, description: string, image: string): Promise<Project> {
   const newProject: Project = {
-    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
+    id: 'proj_' + crypto.randomUUID(),
     title,
     description,
     image,
@@ -121,7 +129,7 @@ async function saveLocalProject(project: Project): Promise<Project> {
   await ensureLocalFile();
   const projects = await getLocalProjects();
   projects.unshift(project);
-  await fs.writeFile(LOCAL_FILE_PATH, JSON.stringify(projects, null, 2), 'utf-8');
+  await safeWriteFile(LOCAL_FILE_PATH, JSON.stringify(projects, null, 2));
   return project;
 }
 
@@ -152,7 +160,7 @@ async function deleteLocalProject(id: string): Promise<boolean> {
   const projects = await getLocalProjects();
   const filtered = projects.filter(p => p.id !== id);
   if (filtered.length === projects.length) return false;
-  await fs.writeFile(LOCAL_FILE_PATH, JSON.stringify(filtered, null, 2), 'utf-8');
+  await safeWriteFile(LOCAL_FILE_PATH, JSON.stringify(filtered, null, 2));
   return true;
 }
 
@@ -194,7 +202,7 @@ async function updateLocalProject(id: string, title: string, description: string
     projects[index].image = image;
   }
   
-  await fs.writeFile(LOCAL_FILE_PATH, JSON.stringify(projects, null, 2), 'utf-8');
+  await safeWriteFile(LOCAL_FILE_PATH, JSON.stringify(projects, null, 2));
   return projects[index];
 }
 
@@ -215,7 +223,24 @@ async function ensureLocalPaymentsFile() {
     await fs.mkdir(path.dirname(PAYMENTS_FILE_PATH), { recursive: true });
     await fs.access(PAYMENTS_FILE_PATH);
   } catch {
-    await fs.writeFile(PAYMENTS_FILE_PATH, JSON.stringify([], null, 2), 'utf-8');
+    await safeWriteFile(PAYMENTS_FILE_PATH, JSON.stringify([]));
+  }
+}
+
+async function getLocalPayments(): Promise<Payment[]> {
+  await ensureLocalPaymentsFile();
+  try {
+    const data = await fs.readFile(PAYMENTS_FILE_PATH, 'utf-8');
+    const encryptedPayments: Payment[] = JSON.parse(data);
+    
+    // Decrypt PII fields on load
+    return encryptedPayments.map(p => ({
+      ...p,
+      clientName: decryptText(p.clientName),
+      description: decryptText(p.description)
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -231,7 +256,7 @@ export async function getPayments(): Promise<Payment[]> {
         console.warn("Supabase error fetching payments, falling back to local:", error);
         return getLocalPayments();
       }
-      return data || [];
+      return data;
     } catch (e) {
       console.warn("Supabase exception fetching payments, falling back to local:", e);
       return getLocalPayments();
@@ -241,31 +266,36 @@ export async function getPayments(): Promise<Payment[]> {
   }
 }
 
-async function getLocalPayments(): Promise<Payment[]> {
-  await ensureLocalPaymentsFile();
-  try {
-    const data = await fs.readFile(PAYMENTS_FILE_PATH, 'utf-8');
-    const encryptedPayments: Payment[] = JSON.parse(data);
-    // Decrypt PII fields on retrieve
-    return encryptedPayments.map(p => ({
-      ...p,
-      clientName: decryptText(p.clientName),
-      description: decryptText(p.description)
-    }));
-  } catch (e) {
-    console.error("Failed to read local payments:", e);
-    return [];
+export async function getPaymentById(id: string): Promise<Payment | null> {
+  if (useSupabase && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('id', id);
+      
+      if (error) {
+        console.warn("Supabase error fetching payment by id, falling back to local:", error);
+        return getLocalPaymentById(id);
+      }
+      return data[0] || null;
+    } catch (e) {
+      console.warn("Supabase exception fetching payment by id, falling back to local:", e);
+      return getLocalPaymentById(id);
+    }
+  } else {
+    return getLocalPaymentById(id);
   }
 }
 
-export async function getPaymentById(id: string): Promise<Payment | null> {
-  const payments = await getPayments();
+async function getLocalPaymentById(id: string): Promise<Payment | null> {
+  const payments = await getLocalPayments();
   return payments.find(p => p.id === id) || null;
 }
 
-export async function createPayment(description: string, value: number, clientName: string, method: 'pix' | 'card' | 'all' = 'all', cardUrl?: string): Promise<Payment> {
+export async function createPayment(description: string, value: number, clientName: string, method?: 'pix' | 'card' | 'all', cardUrl?: string): Promise<Payment> {
   const newPayment: Payment = {
-    id: 'pay_' + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)),
+    id: 'pay_' + crypto.randomUUID(),
     clientName,
     description,
     value,
@@ -296,18 +326,22 @@ export async function createPayment(description: string, value: number, clientNa
 }
 
 async function saveLocalPayment(payment: Payment): Promise<Payment> {
-  await ensureLocalPaymentsFile();
-  const payments = await getLocalPayments();
-  payments.unshift(payment);
-  
-  // Encrypt PII fields before saving
-  const encryptedPayments = payments.map(p => ({
-    ...p,
-    clientName: encryptText(p.clientName),
-    description: encryptText(p.description)
-  }));
-  
-  await fs.writeFile(PAYMENTS_FILE_PATH, JSON.stringify(encryptedPayments, null, 2), 'utf-8');
+  try {
+    await ensureLocalPaymentsFile();
+    const payments = await getLocalPayments();
+    payments.unshift(payment);
+    
+    // Encrypt PII fields before saving
+    const encryptedPayments = payments.map(p => ({
+      ...p,
+      clientName: encryptText(p.clientName),
+      description: encryptText(p.description)
+    }));
+    
+    await safeWriteFile(PAYMENTS_FILE_PATH, JSON.stringify(encryptedPayments, null, 2));
+  } catch (err) {
+    console.warn("Failed to save local payment fallback:", err);
+  }
   return payment;
 }
 
@@ -334,20 +368,25 @@ export async function deletePayment(id: string): Promise<boolean> {
 }
 
 async function deleteLocalPayment(id: string): Promise<boolean> {
-  await ensureLocalPaymentsFile();
-  const payments = await getLocalPayments();
-  const filtered = payments.filter(p => p.id !== id);
-  if (filtered.length === payments.length) return false;
-  
-  // Encrypt PII fields before saving
-  const encryptedPayments = filtered.map(p => ({
-    ...p,
-    clientName: encryptText(p.clientName),
-    description: encryptText(p.description)
-  }));
-  
-  await fs.writeFile(PAYMENTS_FILE_PATH, JSON.stringify(encryptedPayments, null, 2), 'utf-8');
-  return true;
+  try {
+    await ensureLocalPaymentsFile();
+    const payments = await getLocalPayments();
+    const filtered = payments.filter(p => p.id !== id);
+    if (filtered.length === payments.length) return false;
+    
+    // Encrypt PII fields before saving
+    const encryptedPayments = filtered.map(p => ({
+      ...p,
+      clientName: encryptText(p.clientName),
+      description: encryptText(p.description)
+    }));
+    
+    await safeWriteFile(PAYMENTS_FILE_PATH, JSON.stringify(encryptedPayments, null, 2));
+    return true;
+  } catch (err) {
+    console.warn("Failed to delete local payment fallback:", err);
+    return false;
+  }
 }
 
 export interface Automation {
@@ -369,22 +408,22 @@ async function ensureLocalAutomationsFile() {
       {
         id: "auto-1",
         num: "01",
-        title: "Atendimento ao cliente 24h",
-        desc: "Evite perder vendas por demora no retorno. Seus clientes recebem respostas imediatas para as dúvidas mais comuns a qualquer hora do dia ou da noite, garantindo agilidade no contato e mantendo o interesse de quem procura seus serviços.",
+        title: "Disparo automático pós-venda",
+        desc: "Transforme clientes pontuais em recorrentes. O sistema detecta o pagamento aprovado no seu gateway e envia mensagens automáticas de agradecimento, nota fiscal e pesquisas de satisfação personalizadas.",
         createdAt: new Date(Date.now() - 3600000 * 9).toISOString()
       },
       {
         id: "auto-2",
         num: "02",
-        title: "Acompanhamento de vendas",
-        desc: "Aumente as chances de fechar novos negócios sem precisar lembrar de enviar mensagens. O sistema envia avisos e novidades aos interessados de forma automática, ajudando a recuperar clientes que pararam de responder.",
+        title: "Cobranças automáticas de boletos",
+        desc: "Reduza a inadimplência sem esforço manual. O sistema envia avisos por WhatsApp e e-mail antes do vencimento do boleto, no dia do vencimento e alertas amigáveis em caso de atraso.",
         createdAt: new Date(Date.now() - 3600000 * 8).toISOString()
       },
       {
         id: "auto-3",
         num: "03",
-        title: "Qualificação de interessados",
-        desc: "Foque o seu tempo de vendas apenas em quem realmente tem potencial para comprar. O sistema conversa de forma simples com os novos interessados, filtra quem atende aos seus requisitos e envia os dados organizados para a sua equipe.",
+        title: "Qualificação de leads via chat",
+        desc: "Poupe tempo da sua equipe focando apenas em quem tem real intenção de compra. Robôs inteligentes conversam, fazem perguntas de qualificação e filtram os melhores clientes antes de passar para o comercial.",
         createdAt: new Date(Date.now() - 3600000 * 7).toISOString()
       },
       {
@@ -430,7 +469,7 @@ async function ensureLocalAutomationsFile() {
         createdAt: new Date(Date.now() - 3600000 * 1).toISOString()
       }
     ];
-    await fs.writeFile(LOCAL_AUTOMATIONS_FILE_PATH, JSON.stringify(initialMocks, null, 2), 'utf-8');
+    await safeWriteFile(LOCAL_AUTOMATIONS_FILE_PATH, JSON.stringify(initialMocks, null, 2));
   }
 }
 
@@ -446,7 +485,7 @@ export async function getAutomations(): Promise<Automation[]> {
         console.warn("Supabase error fetching automations, falling back to local:", error);
         return getLocalAutomations();
       }
-      return data || [];
+      return data;
     } catch (e) {
       console.warn("Supabase exception fetching automations, falling back to local:", e);
       return getLocalAutomations();
@@ -460,17 +499,15 @@ async function getLocalAutomations(): Promise<Automation[]> {
   await ensureLocalAutomationsFile();
   try {
     const data = await fs.readFile(LOCAL_AUTOMATIONS_FILE_PATH, 'utf-8');
-    const list: Automation[] = JSON.parse(data);
-    return list.sort((a, b) => a.num.localeCompare(b.num));
-  } catch (e) {
-    console.error("Failed to read local automations:", e);
+    return JSON.parse(data);
+  } catch {
     return [];
   }
 }
 
 export async function createAutomation(num: string, title: string, desc: string): Promise<Automation> {
   const newAuto: Automation = {
-    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
+    id: 'auto_' + crypto.randomUUID(),
     num,
     title,
     desc,
@@ -499,10 +536,14 @@ export async function createAutomation(num: string, title: string, desc: string)
 }
 
 async function saveLocalAutomation(auto: Automation): Promise<Automation> {
-  await ensureLocalAutomationsFile();
-  const list = await getLocalAutomations();
-  list.push(auto);
-  await fs.writeFile(LOCAL_AUTOMATIONS_FILE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+  try {
+    await ensureLocalAutomationsFile();
+    const list = await getLocalAutomations();
+    list.push(auto);
+    await safeWriteFile(LOCAL_AUTOMATIONS_FILE_PATH, JSON.stringify(list, null, 2));
+  } catch (err) {
+    console.warn("Failed to save local automation fallback:", err);
+  }
   return auto;
 }
 
@@ -530,17 +571,22 @@ export async function updateAutomation(id: string, num: string, title: string, d
 }
 
 async function updateLocalAutomation(id: string, num: string, title: string, desc: string): Promise<Automation | null> {
-  await ensureLocalAutomationsFile();
-  const list = await getLocalAutomations();
-  const index = list.findIndex(a => a.id === id);
-  if (index === -1) return null;
-  
-  list[index].num = num;
-  list[index].title = title;
-  list[index].desc = desc;
-  
-  await fs.writeFile(LOCAL_AUTOMATIONS_FILE_PATH, JSON.stringify(list, null, 2), 'utf-8');
-  return list[index];
+  try {
+    await ensureLocalAutomationsFile();
+    const list = await getLocalAutomations();
+    const index = list.findIndex(a => a.id === id);
+    if (index === -1) return null;
+    
+    list[index].num = num;
+    list[index].title = title;
+    list[index].desc = desc;
+    
+    await safeWriteFile(LOCAL_AUTOMATIONS_FILE_PATH, JSON.stringify(list, null, 2));
+    return list[index];
+  } catch (err) {
+    console.warn("Failed to update local automation fallback:", err);
+    return null;
+  }
 }
 
 export async function deleteAutomation(id: string): Promise<boolean> {
@@ -566,10 +612,15 @@ export async function deleteAutomation(id: string): Promise<boolean> {
 }
 
 async function deleteLocalAutomation(id: string): Promise<boolean> {
-  await ensureLocalAutomationsFile();
-  const list = await getLocalAutomations();
-  const filtered = list.filter(a => a.id !== id);
-  if (filtered.length === list.length) return false;
-  await fs.writeFile(LOCAL_AUTOMATIONS_FILE_PATH, JSON.stringify(filtered, null, 2), 'utf-8');
-  return true;
+  try {
+    await ensureLocalAutomationsFile();
+    const list = await getLocalAutomations();
+    const filtered = list.filter(a => a.id !== id);
+    if (filtered.length === list.length) return false;
+    await safeWriteFile(LOCAL_AUTOMATIONS_FILE_PATH, JSON.stringify(filtered, null, 2));
+    return true;
+  } catch (err) {
+    console.warn("Failed to delete local automation fallback:", err);
+    return false;
+  }
 }
