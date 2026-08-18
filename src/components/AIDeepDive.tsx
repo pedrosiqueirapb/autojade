@@ -14,53 +14,7 @@ interface AIDeepDiveProps {
 }
 
 export default function AIDeepDive({ automations }: AIDeepDiveProps) {
-  const modules = (automations && automations.length > 0) ? automations : [
-    {
-      num: '01',
-      title: 'Atendimento ao cliente 24h',
-      desc: 'Evite perder vendas por demora no retorno. Seus clientes recebem respostas imediatas para as dúvidas mais comuns a qualquer hora do dia ou da noite, garantindo agilidade no contato e mantendo o interesse de quem procura seus serviços.'
-    },
-    {
-      num: '02',
-      title: 'Acompanhamento de vendas',
-      desc: 'Aumente as chances de fechar novos negócios sem precisar lembrar de enviar mensagens. O sistema envia avisos e novidades aos interessados de forma automática, ajudando a recuperar clientes que pararam de responder.'
-    },
-    {
-      num: '03',
-      title: 'Qualificação de interessados',
-      desc: 'Foque o seu tempo de vendas apenas em quem realmente tem potencial para comprar. O sistema conversa de forma simples com os novos interessados, filtra quem atende aos seus requisitos e envia os dados organizados para a sua equipe.'
-    },
-    {
-      num: '04',
-      title: 'Agendamento de horários',
-      desc: 'Elimine erros de marcação e a perda de tempo organizando compromissos. Seus clientes escolhem o horário disponível de forma simples e recebem lembretes automáticos, reduzindo drasticamente os esquecimentos e faltas.'
-    },
-    {
-      num: '05',
-      title: 'Leitura de notas fiscais',
-      desc: 'Livre sua equipe de digitar notas fiscais e enviar documentos manualmente para o contador. O sistema lê as notas recebidas por e-mail de forma automática, organiza os dados e envia tudo direto para a contabilidade ao fim do mês.'
-    },
-    {
-      num: '06',
-      title: 'Pesquisa ativa de clientes',
-      desc: 'Mantenha sua equipe comercial sempre abastecida com novas oportunidades. O sistema busca de forma ativa empresas ou clientes com o perfil ideal na internet e inicia o primeiro contato de apresentação do seu negócio.'
-    },
-    {
-      num: '07',
-      title: 'Boas-vindas e satisfação',
-      desc: 'Melhore a experiência de quem acabou de contratar sua empresa e evite cancelamentos. O sistema guia o novo cliente nos primeiros passos de uso do serviço e solicita avaliações e comentários para garantir a satisfação dele.'
-    },
-    {
-      num: '08',
-      title: 'Lembretes para eventos',
-      desc: 'Garanta a presença do público em suas reuniões, treinamentos ou palestras. O sistema cuida de todas as inscrições, confirmações de pagamento e envia avisos personalizados com as principais informações antes do início.'
-    },
-    {
-      num: '09',
-      title: 'Seleção rápida de currículos',
-      desc: 'Agilize a contratação de novos funcionários para a sua empresa sem perder tempo analisando dezenas de e-mails. O sistema analisa os currículos recebidos, seleciona os melhores perfis e marca a entrevista de forma automática.'
-    }
-  ];
+  const modules = automations || [];
 
   const [isExpanded, setIsExpanded] = React.useState(false);
 
