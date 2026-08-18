@@ -31,20 +31,26 @@ export default function AIDeepDive({ automations }: AIDeepDiveProps) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {visibleModules.map((m) => (
-            <div 
-              key={(m as { id?: string; num: string }).id || m.num} 
-              className="p-6 rounded-2xl bg-light hover:bg-secondary/5 border border-gray-100 transition-colors space-y-3"
-            >
-              <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
-                {m.num}
+        {modules.length === 0 ? (
+          <p className="text-center text-gray-500 py-12 text-sm font-medium">
+            Nenhum módulo de automação cadastrado no momento. Em breve compartilharemos novas soluções!
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {visibleModules.map((m) => (
+              <div 
+                key={(m as { id?: string; num: string }).id || m.num} 
+                className="p-6 rounded-2xl bg-light hover:bg-secondary/5 border border-gray-100 transition-colors space-y-3"
+              >
+                <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                  {m.num}
+                </div>
+                <h3 className="font-display font-bold text-gray-950 text-base">{m.title}</h3>
+                <p className="text-xs text-gray-600 leading-relaxed">{m.desc}</p>
               </div>
-              <h3 className="font-display font-bold text-gray-950 text-base">{m.title}</h3>
-              <p className="text-xs text-gray-600 leading-relaxed">{m.desc}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {modules.length > 6 && (
           <div className="flex justify-center pt-4">
