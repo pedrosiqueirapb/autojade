@@ -12,6 +12,7 @@ interface PaymentDetails {
   method?: 'pix' | 'card' | 'all';
   pixCode?: string;
   cardUrl?: string;
+  billingType?: 'single' | 'recurrent';
 }
 
 function PaymentContent() {
@@ -122,8 +123,15 @@ function PaymentContent() {
           <h3 className="font-display font-semibold text-gray-900 text-sm mt-0.5 leading-relaxed">{paymentDetails.description}</h3>
         </div>
         <div className="flex justify-between items-center pt-3 border-t border-gray-200/60">
-          <span className="text-xs text-gray-500 font-medium">Total a pagar</span>
-          <span className="font-display font-bold text-primary text-xl">{formatCurrency(paymentDetails.value)}</span>
+          <span className="text-xs text-gray-500 font-medium">
+            {paymentDetails.billingType === 'recurrent' ? 'Valor da assinatura' : 'Total a pagar'}
+          </span>
+          <span className="font-display font-bold text-primary text-xl">
+            {formatCurrency(paymentDetails.value)}
+            {paymentDetails.billingType === 'recurrent' && (
+              <span className="text-xs font-normal text-gray-500 ml-1">/ mês</span>
+            )}
+          </span>
         </div>
       </div>
 

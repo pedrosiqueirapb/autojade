@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Não autorizado. Por favor, faça login.' }, { status: 401 });
     }
 
-    const { description, value, clientName, method } = await request.json();
+    const { description, value, clientName, method, billingType } = await request.json();
     
     if (!description || typeof value !== 'number' || !clientName) {
       return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 });
@@ -68,12 +68,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'O valor da cobrança deve ser um número positivo maior que zero.' }, { status: 400 });
     }
 
-    const validatedMethod = (method === 'pix' || method === 'card' || method === 'all') ? method : 'all';
+    const validatedBillingType = billingType === 'recurrent' ? 'recurrent' : 'single';
+    // For recurring subscription billing, we only allow credit card payments
+    const validatedMethod = validatedBillingType === 'recurrent' ? 'card' : ((method === 'pix' || method === 'card' || method === 'all') ? method : 'all');
 
     let cardUrl = undefined;
     if (validatedMethod === 'card' || validatedMethod === 'all') {
       try {
-        cardUrl = await createAsaasPayment(clientName, description, value);
+        cardUrl = await createAsaasPayment(clientName, description, value, validatedBillingType);
       } catch (err) {
         console.error("Failed to generate Asaas billing link:", err);
         const errMsg = err instanceof Error ? err.message : 'Falha ao integrar com o gateway Asaas. Por favor, verifique suas configurações de API.';
@@ -81,7 +83,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const newPayment = await createPayment(description, value, clientName, validatedMethod, cardUrl);
+    const newPayment = await createPayment(description, value, clientName, validatedMethod, cardUrl, validatedBillingType);
     return NextResponse.json(newPayment, { status: 201 });
   } catch (error) {
     console.error("API POST Payment Error:", error);

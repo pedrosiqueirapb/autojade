@@ -18,6 +18,7 @@ interface Payment {
   value: number;
   method?: 'pix' | 'card' | 'all';
   cardUrl?: string;
+  billingType?: 'single' | 'recurrent';
   createdAt: string;
 }
 
@@ -54,6 +55,7 @@ export default function AdminDashboard() {
   const [paymentVal, setPaymentVal] = useState<number | ''>('');
   const [paymentClient, setPaymentClient] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'card' | 'all'>('all');
+  const [billingType, setBillingType] = useState<'single' | 'recurrent'>('single');
   const [paymentError, setPaymentError] = useState('');
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
@@ -353,7 +355,8 @@ export default function AdminDashboard() {
           description: paymentDesc,
           value: numericValue,
           clientName: paymentClient,
-          method: paymentMethod
+          method: billingType === 'recurrent' ? 'card' : paymentMethod,
+          billingType: billingType
         })
       });
 
@@ -362,6 +365,7 @@ export default function AdminDashboard() {
         setPaymentVal('');
         setPaymentClient('');
         setPaymentMethod('all');
+        setBillingType('single');
         setRefreshPaymentsTrigger(prev => prev + 1);
       } else if (response.status === 401) {
         alert('Sua sessão expirou.');
@@ -923,7 +927,7 @@ export default function AdminDashboard() {
 
               <div>
                 <label htmlFor="paymentVal" className="block text-sm font-medium text-gray-700 mb-1">
-                  Valor total (R$)
+                  {billingType === 'recurrent' ? 'Valor da mensalidade (R$)' : 'Valor total (R$)'}
                 </label>
                 <input
                   type="number"
@@ -938,20 +942,53 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-1">
-                  Forma de pagamento
+                <label htmlFor="billingType" className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo de cobrança
                 </label>
                 <select
-                  id="paymentMethod"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as 'pix' | 'card' | 'all')}
+                  id="billingType"
+                  value={billingType}
+                  onChange={(e) => {
+                     const val = e.target.value as 'single' | 'recurrent';
+                     setBillingType(val);
+                     if (val === 'recurrent') {
+                       setPaymentMethod('card');
+                     }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary focus:outline-none text-sm bg-white"
                   required
                 >
-                  <option value="all">PIX e cartão de crédito</option>
-                  <option value="pix">Apenas PIX</option>
-                  <option value="card">Apenas cartão de crédito</option>
+                  <option value="single">Cobrança única</option>
+                  <option value="recurrent">Assinatura recorrente</option>
                 </select>
+              </div>
+
+              <div>
+                <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-1">
+                  Forma de pagamento
+                </label>
+                {billingType === 'recurrent' ? (
+                  <select
+                    id="paymentMethod"
+                    value="card"
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 focus:outline-none text-sm cursor-not-allowed"
+                  >
+                    <option value="card">Cartão de crédito</option>
+                  </select>
+                ) : (
+                  <select
+                    id="paymentMethod"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as 'pix' | 'card' | 'all')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary focus:outline-none text-sm bg-white"
+                    required
+                  >
+                    <option value="all">PIX e cartão de crédito</option>
+                    <option value="pix">Apenas PIX</option>
+                    <option value="card">Apenas cartão de crédito</option>
+                  </select>
+                )}
               </div>
 
               {paymentError && (
@@ -991,9 +1028,15 @@ export default function AdminDashboard() {
                         <div className="flex items-center flex-wrap gap-2">
                           <span className="bg-primary/10 text-primary text-[9px] font-bold px-2 py-0.5 rounded">ID: {p.id}</span>
                           <span className="text-[10px] text-gray-700 font-bold">Cliente: {p.clientName}</span>
-                          <span className="bg-secondary/15 text-primary text-[9px] font-bold px-2 py-0.5 rounded">
-                            {p.method === 'pix' ? 'PIX' : p.method === 'card' ? 'Cartão' : 'PIX ou cartão'}
-                          </span>
+                          {p.billingType === 'recurrent' ? (
+                            <span className="bg-green-100 text-green-800 text-[9px] font-bold px-2 py-0.5 rounded border border-green-200">
+                              Assinatura Mensal
+                            </span>
+                          ) : (
+                            <span className="bg-secondary/15 text-primary text-[9px] font-bold px-2 py-0.5 rounded">
+                              {p.method === 'pix' ? 'PIX' : p.method === 'card' ? 'Cartão' : 'PIX ou cartão'}
+                            </span>
+                          )}
                           <span className="text-[10px] text-gray-400">
                             • {new Date(p.createdAt).toLocaleDateString('pt-BR')}
                           </span>
@@ -1001,6 +1044,7 @@ export default function AdminDashboard() {
                         <h4 className="font-semibold text-gray-900 text-sm leading-tight pt-1">{p.description}</h4>
                         <p className="text-xs font-bold text-primary">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.value)}
+                          {p.billingType === 'recurrent' && <span className="text-[10px] text-gray-500 font-normal ml-0.5">/ mês</span>}
                         </p>
                       </div>
 

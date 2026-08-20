@@ -27,28 +27,37 @@ export async function createAsaasCustomer(name: string): Promise<string> {
   return data.id; // e.g. "cus_000005719b79"
 }
 
-export async function createAsaasPayment(clientName: string, description: string, value: number): Promise<string> {
+export async function createAsaasPayment(clientName: string, description: string, value: number, billingType?: 'single' | 'recurrent'): Promise<string> {
   const apiKey = process.env.ASAAS_API_KEY;
   if (!apiKey) {
     throw new Error('Chave de API do Asaas não configurada no servidor.');
   }
 
-  // Generate a payment link supporting credit card with up to 7 installments
+  const isRecurrent = billingType === 'recurrent';
+
+  const bodyData: Record<string, string | number | boolean> = {
+    name: `${clientName} - ${description.substring(0, 50)}`,
+    description: description.substring(0, 255).trim(),
+    billingType: 'CREDIT_CARD',
+    value: Number(value.toFixed(2)),
+    notificationEnabled: false
+  };
+
+  if (isRecurrent) {
+    bodyData.chargeType = 'RECURRENT';
+    bodyData.subscriptionCycle = 'MONTHLY';
+  } else {
+    bodyData.chargeType = 'INSTALLMENT';
+    bodyData.maxInstallmentCount = 7;
+  }
+
   const response = await fetch('https://api.asaas.com/v3/paymentLinks', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'access_token': apiKey
     },
-    body: JSON.stringify({
-      name: `${clientName} - ${description.substring(0, 50)}`,
-      description: description.substring(0, 255).trim(),
-      billingType: 'CREDIT_CARD',
-      chargeType: 'INSTALLMENT',
-      maxInstallmentCount: 7,
-      value: Number(value.toFixed(2)),
-      notificationEnabled: false
-    })
+    body: JSON.stringify(bodyData)
   });
 
   if (!response.ok) {

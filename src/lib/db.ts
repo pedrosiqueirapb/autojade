@@ -213,6 +213,7 @@ export interface Payment {
   value: number;
   method?: 'pix' | 'card' | 'all';
   cardUrl?: string;
+  billingType?: 'single' | 'recurrent';
   createdAt: string;
 }
 
@@ -293,7 +294,7 @@ async function getLocalPaymentById(id: string): Promise<Payment | null> {
   return payments.find(p => p.id === id) || null;
 }
 
-export async function createPayment(description: string, value: number, clientName: string, method?: 'pix' | 'card' | 'all', cardUrl?: string): Promise<Payment> {
+export async function createPayment(description: string, value: number, clientName: string, method?: 'pix' | 'card' | 'all', cardUrl?: string, billingType?: 'single' | 'recurrent'): Promise<Payment> {
   const newPayment: Payment = {
     id: 'pay_' + crypto.randomUUID(),
     clientName,
@@ -301,6 +302,7 @@ export async function createPayment(description: string, value: number, clientNa
     value,
     method,
     cardUrl,
+    billingType: billingType || 'single',
     createdAt: new Date().toISOString()
   };
 
