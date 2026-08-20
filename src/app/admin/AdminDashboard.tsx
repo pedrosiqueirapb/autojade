@@ -1030,7 +1030,7 @@ export default function AdminDashboard() {
                           <span className="text-[10px] text-gray-700 font-bold">Cliente: {p.clientName}</span>
                           {p.billingType === 'recurrent' ? (
                             <span className="bg-green-100 text-green-800 text-[9px] font-bold px-2 py-0.5 rounded border border-green-200">
-                              Assinatura Mensal
+                              Assinatura mensal
                             </span>
                           ) : (
                             <span className="bg-secondary/15 text-primary text-[9px] font-bold px-2 py-0.5 rounded">
